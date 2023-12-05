@@ -1,10 +1,10 @@
 mod grid_finder;
 
 use crate::grid_finder::find_grid_cells;
+use image::imageops::overlay;
 use image::math::Rect;
-use image::{DynamicImage, GenericImage, GenericImageView, ImageError, Pixel, Rgba};
+use image::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageError, Pixel, Rgba};
 use std::ffi::OsStr;
-use std::fs::File;
 use std::path::Path;
 use thiserror::Error;
 
@@ -23,7 +23,7 @@ pub enum FpcError {
     Unknown,
 }
 
-type Result<T> = std::result::Result<T, FpcError>;
+pub type Result<T> = std::result::Result<T, FpcError>;
 
 // extract_images_from_image_grid
 // - takes aspect ratio (w/h)
@@ -47,35 +47,49 @@ type Result<T> = std::result::Result<T, FpcError>;
 pub fn extract_images_from_image_grid(
     img: &DynamicImage,
     aspect_ratio: f64,
-    padding: (u32, u32),
+    max_width: u32,
     background_color: Rgba<u16>,
     output_directory: impl AsRef<OsStr>,
     output_file_stem: impl AsRef<OsStr>,
 ) -> Result<()> {
     let cells = find_grid_cells(img)?;
-    output_debug_image(img, &cells);
+    output_debug_image(img, &cells)?;
     println!("grid cells: {:?}", cells);
 
     for (i, rect) in cells.iter().enumerate() {
         let tail = format!("-{}", i);
-        let mut filename = output_file_stem.as_ref().clone().to_os_string();
+        let mut filename = output_file_stem.as_ref().to_os_string();
         filename.push(tail);
         let path = Path::new(output_directory.as_ref())
             .join(filename)
             .with_extension("png");
-        let sub_image = img.crop_imm(rect.x, rect.y, rect.width, rect.height);
-        sub_image.save(path)?;
+        //let sub_image = img.crop_imm(rect.x, rect.y, rect.width, rect.height);
+        let new_image = make_sub_image(img, rect, Rgba([65535u16, 65535, 65535, 65535]))?;
+        new_image.save(path)?;
     }
 
     Ok(())
 }
 
-fn output_debug_image(img: &DynamicImage, cells: &Vec<Rect>) {
+fn make_sub_image(
+    img: &DynamicImage,
+    rect: &Rect,
+    background_color: Rgba<u16>,
+) -> Result<ImageBuffer<Rgba<u16>, Vec<u16>>> {
+    // TODO: add rounded corners.
+    let mut new_image = ImageBuffer::from_pixel(rect.width, rect.height, background_color);
+    let sub_image = img.crop_imm(rect.x, rect.y, rect.width, rect.height);
+    overlay(&mut new_image, &sub_image.to_rgba16(), 0, 0);
+    Ok(new_image)
+}
+
+fn output_debug_image(img: &DynamicImage, cells: &Vec<Rect>) -> Result<()> {
     let mut img_copy = img.clone();
     for rect in cells {
         draw_rect(&mut img_copy, rect);
     }
-    img_copy.save("DEBUG.png");
+    img_copy.save("DEBUG.png")?;
+    Ok(())
 }
 
 fn draw_rect(img: &mut DynamicImage, rect: &Rect) {

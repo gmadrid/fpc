@@ -40,30 +40,22 @@ fn group_sequences(iter: impl Iterator<Item = u32>) -> Vec<Range<u32>> {
 
 pub fn find_grid_cells(img: &DynamicImage) -> Result<Vec<Rect>> {
     let bordered_bounds = find_bordered_bounds(img)?;
-    println!("bordered bounds: {:?}", bordered_bounds);
     let (left_thickness, top_thickness, right_thickness, bottom_thickness) =
         find_border_widths(img, bordered_bounds)?;
-    println!(
-        "border widths: left: {:?}, top: {:?}, right: {:?}, bottom: {:?}",
-        left_thickness, top_thickness, right_thickness, bottom_thickness
-    );
     let inside_border_bounds = Rect {
         x: left_thickness,
         y: top_thickness,
         width: bordered_bounds.width - left_thickness - right_thickness,
         height: bordered_bounds.height - top_thickness - bottom_thickness,
     };
-    println!("inside_border_bounds: {:?}", inside_border_bounds);
     let vert_grid_line_ranges = find_grid_line_ranges(
         bordered_bounds.x..bordered_bounds.x + bordered_bounds.width,
         move |xx| transparent_pixel(img, xx, inside_border_bounds.y),
     );
-    println!("vert grid line ranges: {:?}", vert_grid_line_ranges);
     let horiz_grid_line_ranges = find_grid_line_ranges(
         bordered_bounds.y..bordered_bounds.y + bordered_bounds.height,
         move |yy| transparent_pixel(img, inside_border_bounds.x, yy),
     );
-    println!("horiz grid line ranges: {:?}", horiz_grid_line_ranges);
     let mut rects: Vec<Rect> = vec![];
     for (top, bottom) in horiz_grid_line_ranges.iter().tuple_windows() {
         for (left, right) in vert_grid_line_ranges.iter().tuple_windows() {
@@ -85,7 +77,6 @@ fn find_grid_line_ranges<'a>(
     is_blank: impl Fn(u32) -> bool + 'a,
 ) -> Vec<Range<u32>> {
     let pixels_iter = find_pixels(range, |i| !is_blank(i));
-    println!("pixels_iter: {:?}", pixels_iter.size_hint());
     group_sequences(pixels_iter)
 }
 
@@ -116,39 +107,6 @@ fn find_bordered_bounds(img: &DynamicImage) -> Result<Rect> {
         height: bottom - top + 1,
     })
 }
-
-// pub fn find_grid_cellss(img: &DynamicImage) -> Result<Vec<Rect>> {
-//     let (left_thickness, top_thickness, right_thickness, bottom_thickness) =
-//         find_border_widths(img)?;
-//
-//     // grouped_pixels will be ranges of non-blank pixels.
-//     let vertical_grid = vec![(0..left_thickness - 1)];
-//     let mut grouped_pixels: Vec<_> = (left_thickness..(img.width() - right_thickness))
-//         .flat_map(|xx| {
-//             if !transparent_pixel(img, xx, top_thickness) {
-//                 Some(xx)
-//             } else {
-//                 None
-//             }
-//         })
-//         .fold(vertical_grid, |mut acc: Vec<Range<u32>>, i| {
-//             if let Some(range) = acc.last_mut() {
-//                 if range.end == i - 1 {
-//                     range.end = i;
-//                 } else {
-//                     acc.push(Range { start: i, end: i });
-//                 }
-//             } else {
-//                 acc.push(Range { start: i, end: i })
-//             }
-//             acc
-//         });
-//     grouped_pixels.push(img.width() - right_thickness..img.width() - 1);
-//
-//     println!("pixels: {:?}", grouped_pixels);
-//
-//     todo!()
-// }
 
 fn scan_range(
     mut range: impl Iterator<Item = u32>,
