@@ -90,8 +90,8 @@ fn scale_to_constraints(
     let mut maybe_height = (maybe_width as f64 * aspect_ratio) as u32;
     if maybe_height > height {
         let scale = height / maybe_height;
-        maybe_width = maybe_width * scale;
-        maybe_height = maybe_height * scale;
+        maybe_width *= scale;
+        maybe_height *= scale;
     }
 
     let new_bounds = Rect {
