@@ -1,6 +1,7 @@
 use argh::FromArgs;
 use fpc::*;
 use image::{open, Rgba};
+use std::ffi::OsString;
 
 /// Find playing cards in a source image.
 /// TODO: make this better.
@@ -17,6 +18,14 @@ struct Args {
     /// the maximum width of the output images
     #[argh(option, default = "750")]
     max_width: u32,
+
+    /// the directory in which to output all of the image files. (Default './')
+    #[argh(option, default = "OsString::from(\"./\")")]
+    output_directory: OsString,
+
+    /// output images will be named '<output_stem>-<num>.png' (Default: 'grid_image')
+    #[argh(option, default = "OsString::from(\"grid_image\")")]
+    output_stem: OsString,
 
     #[argh(positional)]
     input_images: Vec<String>,
@@ -35,8 +44,8 @@ fn main() -> fpc::Result<()> {
             args.aspect_ratio,
             args.max_width,
             Rgba(background_color),
-            "/tmp/imm",
-            "stem",
+            &args.output_directory,
+            &args.output_stem,
         )?;
     }
     Ok(())

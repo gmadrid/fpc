@@ -54,7 +54,6 @@ pub fn extract_images_from_image_grid(
 ) -> Result<()> {
     let cells = find_grid_cells(img)?;
     output_debug_image(img, &cells)?;
-    println!("grid cells: {:?}", cells);
 
     for (i, rect) in cells.iter().enumerate() {
         let tail = format!("-{}", i);
@@ -63,12 +62,52 @@ pub fn extract_images_from_image_grid(
         let path = Path::new(output_directory.as_ref())
             .join(filename)
             .with_extension("png");
-        //let sub_image = img.crop_imm(rect.x, rect.y, rect.width, rect.height);
-        let new_image = make_sub_image(img, rect, Rgba([65535u16, 65535, 65535, 65535]))?;
-        new_image.save(path)?;
+        // Rgba([65535u16, 65535, 65535, 65535]
+        let new_image = make_sub_image(img, rect, background_color)?;
+        let new_image_bounds = new_image.bounds();
+        let scaled_image = scale_to_constraints(
+            &DynamicImage::ImageRgba16(new_image),
+            new_image_bounds,
+            aspect_ratio,
+            max_width,
+        )?;
+        // let cropped_image = something with AR and max_width
+        // let rounded_corners = pass in the image, and the radius in pixels.
+        scaled_image.save(path)?;
     }
 
     Ok(())
+}
+
+fn scale_to_constraints(
+    img: &DynamicImage,
+    bounds: (u32, u32, u32, u32),
+    aspect_ratio: f64,
+    max_width: u32,
+) -> Result<DynamicImage> {
+    let (x, y, width, height) = bounds;
+    let mut maybe_width = std::cmp::min(width, max_width);
+    let mut maybe_height = (maybe_width as f64 * aspect_ratio) as u32;
+    if maybe_height > height {
+        let scale = height / maybe_height;
+        maybe_width = maybe_width * scale;
+        maybe_height = maybe_height * scale;
+    }
+
+    let new_bounds = Rect {
+        x: x + (width - maybe_width) / 2,
+        y: y + (height - maybe_height) / 2,
+        width: maybe_width,
+        height: maybe_height,
+    };
+
+    let final_image = img.crop_imm(
+        new_bounds.x,
+        new_bounds.y,
+        new_bounds.width,
+        new_bounds.height,
+    );
+    Ok(final_image)
 }
 
 fn make_sub_image(
