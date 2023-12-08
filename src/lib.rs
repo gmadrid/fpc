@@ -1,10 +1,11 @@
 mod grid_finder;
 
 use crate::grid_finder::find_grid_cells;
-use image::imageops::overlay;
+use image::imageops::{overlay, FilterType};
 use image::math::Rect;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageError, Pixel, Rgba};
 use std::ffi::OsStr;
+use std::ops::Range;
 use std::path::Path;
 use thiserror::Error;
 
@@ -71,12 +72,83 @@ pub fn extract_images_from_image_grid(
             aspect_ratio,
             max_width,
         )?;
-        // let cropped_image = something with AR and max_width
-        // let rounded_corners = pass in the image, and the radius in pixels.
-        scaled_image.save(path)?;
+
+        let corner_radius = ((1.0 / 8.0) * 300.0) as u32; // 1/8in with 300dpi
+        let rounded_image = round_the_corners(&scaled_image, corner_radius)?;
+        let rescaled_image = rescale_to_72dpi_1in(aspect_ratio, rounded_image);
+
+        rescaled_image.save(path)?;
     }
 
     Ok(())
+}
+
+fn rescale_to_72dpi_1in(aspect_ratio: f64, rounded_image: DynamicImage) -> DynamicImage {
+    let new_width = (1.5 * 72.0) as u32;
+    let rescaled_image = rounded_image.resize(
+        new_width,
+        (new_width as f64 * aspect_ratio) as u32,
+        FilterType::Triangle,
+    );
+    rescaled_image
+}
+
+fn round_the_corners(img: &DynamicImage, corner_radius_px: u32) -> Result<DynamicImage> {
+    let mut rounded_image = img.clone();
+    let (x, y, width, height) = rounded_image.bounds();
+
+    let top_left_center = (x + corner_radius_px, y + corner_radius_px);
+    round_a_corner(
+        &mut rounded_image,
+        x..top_left_center.0,
+        y..top_left_center.1,
+        corner_radius_px,
+        top_left_center,
+    );
+    let top_right_center = (x + width - corner_radius_px, y + corner_radius_px);
+    round_a_corner(
+        &mut rounded_image,
+        top_right_center.0..x + width,
+        y..top_right_center.1,
+        corner_radius_px,
+        top_right_center,
+    );
+    let bottom_left_center = (x + corner_radius_px, y + height - corner_radius_px);
+    round_a_corner(
+        &mut rounded_image,
+        x..bottom_left_center.0,
+        bottom_left_center.1..y + height,
+        corner_radius_px,
+        bottom_left_center,
+    );
+    let bottom_right_center = (x + width - corner_radius_px, y + height - corner_radius_px);
+    round_a_corner(
+        &mut rounded_image,
+        bottom_right_center.0..x + width,
+        bottom_right_center.1..y + height,
+        corner_radius_px,
+        bottom_right_center,
+    );
+    Ok(rounded_image)
+}
+
+fn round_a_corner(
+    img: &mut DynamicImage,
+    x_range: Range<u32>,
+    y_range: Range<u32>,
+    corner_radius_px: u32,
+    center_point: (u32, u32),
+) {
+    let squared = corner_radius_px * corner_radius_px;
+    for y in y_range {
+        let y_offset = y as i32 - center_point.1 as i32;
+        for x in x_range.clone() {
+            let x_offset = x as i32 - center_point.0 as i32;
+            if (x_offset * x_offset + y_offset * y_offset) as u32 > squared {
+                img.put_pixel(x, y, Rgba([0, 0, 0, 0]));
+            }
+        }
+    }
 }
 
 fn scale_to_constraints(
